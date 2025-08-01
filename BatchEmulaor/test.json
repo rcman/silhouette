@@ -1,0 +1,9 @@
+{
+  "testUrl": "http://localhost:8080/my-threejs-scene.html",
+  "environments": [
+    { "name": "Desktop-HD", "width": 1920, "height": 1080 },
+    { "name": "iPhone-14", "width": 390, "height": 844, "deviceScaleFactor": 3 },
+    { "name": "Pixel-5", "width": 394, "height": 851, "deviceScaleFactor": 2.75 },
+    { "name": "Macbook-Pro", "width": 1728, "height": 1117, "deviceScaleFactor": 2 }
+  ]
+}
