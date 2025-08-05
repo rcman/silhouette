@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Lightmap Bake & Reflections</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
+
+        // Orbit controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        camera.position.set(3, 2, 4);
+        controls.update();
+
+        // Light sources
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffaa33, 1);
+        directionalLight.position.set(2, 3, 1);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // Light Probe
+        const lightProbe = new THREE.LightProbe();
+        THREE.LightProbeGenerator.fromScene(scene, renderer, 256).then((generatedProbe) => {
+            lightProbe.copy(generatedProbe);
+        });
+        scene.add(lightProbe);
+
+        // Create objects
+        const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+        const planeGeometry = new THREE.PlaneGeometry(10, 10);
+
+        // Materials
+        const bakedMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+
+        const reflectiveMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.1,
+            metalness: 0.9,
+            envMapIntensity: 1
+        });
+
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x333333,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+
+        // Create meshes
+        const box = new THREE.Mesh(boxGeometry, bakedMaterial);
+        box.position.set(-1.5, 1, 0);
+        box.castShadow = true;
+        box.receiveShadow = true;
+
+        const sphere = new THREE.Mesh(sphereGeometry, reflectiveMaterial);
+        sphere.position.set(1.5, 1, 0);
+        sphere.castShadow = true;
+
+        const ground = new THREE.Mesh(planeGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.5;
+        ground.receiveShadow = true;
+
+        scene.add(box, sphere, ground);
+
+        // Cube Camera for reflections
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+            format: THREE.RGBFormat,
+            generateMipmaps: true,
+            minFilter: THREE.LinearMipmapLinearFilter
+        });
+
+        const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
+        sphere.add(cubeCamera);
+        reflectiveMaterial.envMap = cubeRenderTarget.texture;
+
+        // Lightmap baking function
+        function bakeLightmap(targetMesh) {
+            const bakeScene = new THREE.Scene();
+            const bakeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            
+            // Create UV map render target
+            const uvRenderTarget = new THREE.WebGLRenderTarget(1024, 1024, {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.NearestFilter,
+                format: THREE.RGBAFormat
+            });
+
+            // UV visualization material
+            const uvMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                wireframe: false
+            });
+
+            // Clone mesh for baking
+            const bakeMesh = targetMesh.clone();
+            bakeMesh.material = uvMaterial;
+            bakeScene.add(bakeMesh);
+
+            // Render UV map
+            renderer.setRenderTarget(uvRenderTarget);
+            renderer.render(bakeScene, bakeCamera);
+            renderer.setRenderTarget(null);
+
+            // Create lightmap texture
+            const lightMap = new THREE.CanvasTexture(uvRenderTarget.texture.image);
+            lightMap.flipY = false;
+            
+            // Apply lightmap to original mesh
+            targetMesh.material.lightMap = lightMap;
+            targetMesh.material.lightMapIntensity = 2.0;
+            targetMesh.material.needsUpdate = true;
+        }
+
+        // Bake lightmap for the box
+        bakeLightmap(box);
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate objects
+            box.rotation.y += 0.005;
+            sphere.rotation.x += 0.01;
+            
+            // Update cube camera for reflections
+            sphere.visible = false;
+            cubeCamera.update(renderer, scene);
+            sphere.visible = true;
+            
+            // Render scene
+            renderer.render(scene, camera);
+            controls.update();
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
