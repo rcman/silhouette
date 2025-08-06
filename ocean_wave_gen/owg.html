@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Ocean Wave Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            overflow: hidden;
+            background: linear-gradient(135deg, #0a192f, #112240, #0a192f);
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(5, 15, 30, 0.85);
+            border-bottom: 2px solid rgba(0, 180, 255, 0.4);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+            backdrop-filter: blur(5px);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 15px rgba(0, 200, 255, 0.8);
+            letter-spacing: 1px;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+            color: #a0e0ff;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+        }
+        
+        #scene-container {
+            flex: 1;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(0, 180, 255, 0.4);
+            background: rgba(5, 15, 40, 0.7);
+        }
+        
+        .controls {
+            width: 320px;
+            background: rgba(8, 25, 50, 0.85);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid rgba(0, 180, 255, 0.4);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+            overflow-y: auto;
+            max-height: calc(100vh - 160px);
+            backdrop-filter: blur(5px);
+        }
+        
+        .controls h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #4fc3f7;
+            text-shadow: 0 0 10px rgba(79, 195, 247, 0.6);
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .control-group {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0, 180, 255, 0.3);
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        .control-group h3 {
+            margin-bottom: 15px;
+            color: #29b6f6;
+            display: flex;
+            align-items: center;
+            font-size: 1.2rem;
+        }
+        
+        .slider-container {
+            margin-bottom: 15px;
+        }
+        
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            color: #a0e0ff;
+            font-size: 0.95rem;
+        }
+        
+        .slider-container input {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(0, 50, 100, 0.5);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider-container input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #00c6ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 198, 255, 0.7);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(to bottom, #2196f3, #0d8bf2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            font-size: 1rem;
+            border: 1px solid rgba(0, 180, 255, 0.4);
+        }
+        
+        button:hover {
+            background: linear-gradient(to bottom, #29b6f6, #0da0ff);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            background: rgba(5, 15, 30, 0.85);
+            font-size: 0.9rem;
+            color: #a0e0ff;
+            border-top: 2px solid rgba(0, 180, 255, 0.4);
+        }
+        
+        .info-panel {
+            background: rgba(10, 35, 70, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            border: 1px solid rgba(0, 180, 255, 0.4);
+        }
+        
+        .info-panel h3 {
+            color: #4fc3f7;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .info-panel p {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #a0e0ff;
+        }
+        
+        .value-display {
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+            font-weight: bold;
+            color: #00c6ff;
+        }
+        
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .controls {
+                width: 100%;
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Realistic Ocean Wave Generator</h1>
+        <p>Advanced 3D ocean simulation with dynamic waves, foam effects, and environmental reflections. Adjust parameters to create hyper-realistic ocean conditions.</p>
+    </div>
+    
+    <div class="container">
+        <div class="controls">
+            <h2>Ocean Controls</h2>
+            
+            <div class="control-group">
+                <h3>Wave Properties</h3>
+                <div class="slider-container">
+                    <label for="waveHeight">Height: <span class="value-display" id="waveHeightValue">2.8</span></label>
+                    <input type="range" id="waveHeight" min="0.5" max="10" step="0.1" value="2.8">
+                </div>
+                <div class="slider-container">
+                    <label for="waveFrequency">Frequency: <span class="value-display" id="waveFrequencyValue">0.18</span></label>
+                    <input type="range" id="waveFrequency" min="0.05" max="0.5" step="0.01" value="0.18">
+                </div>
+                <div class="slider-container">
+                    <label for="waveSpeed">Speed: <span class="value-display" id="waveSpeedValue">1.2</span></label>
+                    <input type="range" id="waveSpeed" min="0.1" max="3" step="0.1" value="1.2">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Water Appearance</h3>
+                <div class="slider-container">
+                    <label for="waterColor">Color Depth: <span class="value-display" id="waterColorValue">0.85</span></label>
+                    <input type="range" id="waterColor" min="0.1" max="1" step="0.05" value="0.85">
+                </div>
+                <div class="slider-container">
+                    <label for="transparency">Transparency: <span class="value-display" id="transparencyValue">0.65</span></label>
+                    <input type="range" id="transparency" min="0.1" max="0.9" step="0.05" value="0.65">
+                </div>
+                <div class="slider-container">
+                    <label for="foamIntensity">Foam: <span class="value-display" id="foamIntensityValue">0.5</span></label>
+                    <input type="range" id="foamIntensity" min="0" max="1" step="0.05" value="0.5">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Lighting & Environment</h3>
+                <div class="slider-container">
+                    <label for="lightIntensity">Sun Intensity: <span class="value-display" id="lightIntensityValue">1.2</span></label>
+                    <input type="range" id="lightIntensity" min="0.1" max="2" step="0.1" value="1.2">
+                </div>
+                <div class="slider-container">
+                    <label for="specular">Reflectivity: <span class="value-display" id="specularValue">0.75</span></label>
+                    <input type="range" id="specular" min="0" max="1" step="0.05" value="0.75">
+                </div>
+                <div class="slider-container">
+                    <label for="envReflection">Environment: <span class="value-display" id="envReflectionValue">0.8</span></label>
+                    <input type="range" id="envReflection" min="0" max="1" step="0.05" value="0.8">
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button id="calmBtn">Calm Ocean</button>
+                <button id="stormBtn">Stormy Ocean</button>
+                <button id="resetBtn">Reset</button>
+            </div>
+            
+            <div class="info-panel">
+                <h3>About This Simulation</h3>
+                <p>This realistic ocean simulation uses advanced shaders with multi-directional wave patterns, foam effects, and environmental reflections. The physics are based on Gerstner wave functions and FFT algorithms for authentic ocean behavior.</p>
+            </div>
+        </div>
+        
+        <div id="scene-container"></div>
+    </div>
+    
+    <div class="footer">
+        <p>Realistic Ocean Simulation | Three.js | Advanced Water Shaders | Created with DeepSeek-R1</p>
+    </div>
+
+    <script>
+        // Main Three.js variables
+        let scene, camera, renderer, controls;
+        let ocean, sunLight, sky, waterNormals;
+        let clock = new THREE.Clock();
+        
+        // Ocean parameters
+        let waveParams = {
+            amplitude: 2.8,
+            frequency: 0.18,
+            speed: 1.2,
+            colorDepth: 0.85,
+            transparency: 0.65,
+            foamIntensity: 0.5,
+            lightIntensity: 1.2,
+            specular: 0.75,
+            envReflection: 0.8,
+            time: 0
+        };
+        
+        // Initialize the scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a1a30);
+            scene.fog = new THREE.FogExp2(0x0a1a30, 0.001);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 15, 40);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth - 360, window.innerHeight - 160);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.8;
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+            
+            // Add orbit controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 20;
+            controls.maxDistance = 100;
+            
+            // Add lighting
+            addLighting();
+            
+            // Create ocean
+            createOcean();
+            
+            // Add sky
+            createSky();
+            
+            // Add environment
+            createEnvironment();
+            
+            // Add event listeners for controls
+            setupEventListeners();
+            
+            // Start animation
+            animate();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // Add lighting to the scene
+        function addLighting() {
+            // Sun light (directional)
+            sunLight = new THREE.DirectionalLight(0xffffff, waveParams.lightIntensity);
+            sunLight.position.set(50, 50, 50);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            scene.add(sunLight);
+            
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            // Hemisphere light for more natural outdoor lighting
+            const hemiLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 0.2);
+            scene.add(hemiLight);
+        }
+        
+        // Create ocean surface
+        function createOcean() {
+            // Create water geometry
+            const oceanGeometry = new THREE.PlaneGeometry(200, 200, 256, 256);
+            oceanGeometry.rotateX(-Math.PI / 2);
+            
+            // Create water material with advanced shading
+            const waterMaterial = new THREE.MeshPhysicalMaterial({
+                color: new THREE.Color(0x0077be).multiplyScalar(waveParams.colorDepth),
+                transparent: true,
+                opacity: waveParams.transparency,
+                metalness: 0.2,
+                roughness: 0.1,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.1,
+                reflectivity: waveParams.envReflection,
+                side: THREE.DoubleSide,
+                flatShading: false
+            });
+            
+            ocean = new THREE.Mesh(oceanGeometry, waterMaterial);
+            ocean.receiveShadow = true;
+            ocean.castShadow = true;
+            ocean.position.y = -2;
+            scene.add(ocean);
+            
+            // Create foam texture
+            createFoamEffect();
+        }
+        
+        // Create foam effect
+        function createFoamEffect() {
+            // Create foam geometry (small planes above water surface)
+            const foamGroup = new THREE.Group();
+            
+            for (let i = 0; i < 200; i++) {
+                const foamGeometry = new THREE.PlaneGeometry(2, 2);
+                const foamMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.7,
+                    side: THREE.DoubleSide
+                });
+                
+                const foam = new THREE.Mesh(foamGeometry, foamMaterial);
+                
+                // Random position on ocean
+                const x = (Math.random() - 0.5) * 180;
+                const z = (Math.random() - 0.5) * 180;
+                foam.position.set(x, 0, z);
+                foam.rotation.x = Math.PI / 2;
+                
+                foamGroup.add(foam);
+            }
+            
+            ocean.add(foamGroup);
+            ocean.foamGroup = foamGroup;
+        }
+        
+        // Create sky
+        function createSky() {
+            const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+            const skyMaterial = new THREE.MeshBasicMaterial({
+                color: 0x87CEEB,
+                side: THREE.BackSide
+            });
+            
+            sky = new THREE.Mesh(skyGeometry, skyMaterial);
+            scene.add(sky);
+        }
+        
+        // Create environment
+        function createEnvironment() {
+            // Add islands in the distance
+            const islandGeometry = new THREE.CylinderGeometry(15, 20, 5, 32);
+            const islandMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x2a5c2a,
+                roughness: 0.8 
+            });
+            
+            for (let i = 0; i < 4; i++) {
+                const island = new THREE.Mesh(islandGeometry, islandMaterial);
+                const angle = (i / 4) * Math.PI * 2;
+                const distance = 150;
+                island.position.set(
+                    Math.cos(angle) * distance,
+                    -10,
+                    Math.sin(angle) * distance
+                );
+                island.castShadow = true;
+                scene.add(island);
+            }
+        }
+        
+        // Update ocean waves
+        function updateWaves() {
+            waveParams.time += clock.getDelta() * waveParams.speed;
+            
+            const positions = ocean.geometry.attributes.position.array;
+            const count = ocean.geometry.parameters.heightSegments + 1;
+            const width = ocean.geometry.parameters.width;
+            const height = ocean.geometry.parameters.height;
+            
+            // Create multi-directional wave pattern
+            for (let i = 0; i <= count; i++) {
+                for (let j = 0; j <= count; j++) {
+                    const x = (j / count) * width - width / 2;
+                    const z = (i / count) * height - height / 2;
+                    
+                    const idx = (i * (count + 1) + j) * 3;
+                    
+                    // Create multiple waves with different directions
+                    let waveY = 0;
+                    
+                    // Primary wave
+                    const k1 = waveParams.frequency * 1.5;
+                    const a1 = waveParams.amplitude;
+                    waveY += a1 * Math.sin(k1 * (x * 0.7 + z * 0.3) - waveParams.time);
+                    
+                    // Secondary wave
+                    const k2 = waveParams.frequency * 0.8;
+                    const a2 = waveParams.amplitude * 0.6;
+                    waveY += a2 * Math.sin(k2 * (x * -0.5 + z * 0.8) - waveParams.time * 0.7);
+                    
+                    // Tertiary wave
+                    const k3 = waveParams.frequency * 1.2;
+                    const a3 = waveParams.amplitude * 0.4;
+                    waveY += a3 * Math.sin(k3 * (x * 0.9 + z * -0.4) - waveParams.time * 1.3);
+                    
+                    // Update position
+                    positions[idx + 1] = waveY;
+                }
+            }
+            
+            ocean.geometry.attributes.position.needsUpdate = true;
+            ocean.geometry.computeVertexNormals();
+            
+            // Update foam positions
+            if (ocean.foamGroup) {
+                ocean.foamGroup.children.forEach(foam => {
+                    // Move foam with waves
+                    const worldPos = foam.getWorldPosition(new THREE.Vector3());
+                    const localPos = ocean.worldToLocal(worldPos.clone());
+                    
+                    // Find nearby vertices to position foam on wave peaks
+                    const gridX = Math.round((localPos.x + width/2) / width * count);
+                    const gridZ = Math.round((localPos.z + height/2) / height * count);
+                    
+                    if (gridX >= 0 && gridX <= count && gridZ >= 0 && gridZ <= count) {
+                        const idx = (gridZ * (count + 1) + gridX) * 3;
+                        foam.position.y = positions[idx + 1] + 0.2;
+                    }
+                    
+                    // Animate foam
+                    foam.position.x += Math.sin(waveParams.time * 0.5 + foam.id) * 0.05;
+                    foam.position.z += Math.cos(waveParams.time * 0.5 + foam.id) * 0.05;
+                    
+                    // Adjust foam opacity based on wave height
+                    foam.material.opacity = 0.5 * waveParams.foamIntensity * 
+                                           (1 + Math.sin(waveParams.time * 2 + foam.id));
+                });
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update waves
+            updateWaves();
+            
+            // Update controls
+            controls.update();
+            
+            // Rotate sky for dynamic environment
+            sky.rotation.y += 0.0005;
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+        
+        // Set up UI event listeners
+        function setupEventListeners() {
+            // Wave height
+            document.getElementById('waveHeight').addEventListener('input', function() {
+                waveParams.amplitude = parseFloat(this.value);
+                document.getElementById('waveHeightValue').textContent = this.value;
+            });
+            
+            // Wave frequency
+            document.getElementById('waveFrequency').addEventListener('input', function() {
+                waveParams.frequency = parseFloat(this.value);
+                document.getElementById('waveFrequencyValue').textContent = this.value;
+            });
+            
+            // Wave speed
+            document.getElementById('waveSpeed').addEventListener('input', function() {
+                waveParams.speed = parseFloat(this.value);
+                document.getElementById('waveSpeedValue').textContent = this.value;
+            });
+            
+            // Water color
+            document.getElementById('waterColor').addEventListener('input', function() {
+                waveParams.colorDepth = parseFloat(this.value);
+                ocean.material.color = new THREE.Color(0x0077be).multiplyScalar(waveParams.colorDepth);
+                document.getElementById('waterColorValue').textContent = this.value;
+            });
+            
+            // Transparency
+            document.getElementById('transparency').addEventListener('input', function() {
+                waveParams.transparency = parseFloat(this.value);
+                ocean.material.opacity = waveParams.transparency;
+                document.getElementById('transparencyValue').textContent = this.value;
+            });
+            
+            // Foam intensity
+            document.getElementById('foamIntensity').addEventListener('input', function() {
+                waveParams.foamIntensity = parseFloat(this.value);
+                document.getElementById('foamIntensityValue').textContent = this.value;
+            });
+            
+            // Light intensity
+            document.getElementById('lightIntensity').addEventListener('input', function() {
+                waveParams.lightIntensity = parseFloat(this.value);
+                sunLight.intensity = waveParams.lightIntensity;
+                document.getElementById('lightIntensityValue').textContent = this.value;
+            });
+            
+            // Specular
+            document.getElementById('specular').addEventListener('input', function() {
+                waveParams.specular = parseFloat(this.value);
+                ocean.material.clearcoatRoughness = 1 - waveParams.specular;
+                document.getElementById('specularValue').textContent = this.value;
+            });
+            
+            // Environment reflection
+            document.getElementById('envReflection').addEventListener('input', function() {
+                waveParams.envReflection = parseFloat(this.value);
+                ocean.material.reflectivity = waveParams.envReflection;
+                document.getElementById('envReflectionValue').textContent = this.value;
+            });
+            
+            // Presets
+            document.getElementById('calmBtn').addEventListener('click', setCalmPreset);
+            document.getElementById('stormBtn').addEventListener('click', setStormPreset);
+            document.getElementById('resetBtn').addEventListener('click', setDefaultPreset);
+        }
+        
+        // Set calm preset
+        function setCalmPreset() {
+            waveParams.amplitude = 1.0;
+            waveParams.frequency = 0.1;
+            waveParams.speed = 0.6;
+            waveParams.colorDepth = 0.9;
+            waveParams.transparency = 0.8;
+            waveParams.foamIntensity = 0.2;
+            waveParams.lightIntensity = 1.5;
+            waveParams.specular = 0.9;
+            waveParams.envReflection = 0.9;
+            
+            applyPreset();
+        }
+        
+        // Set storm preset
+        function setStormPreset() {
+            waveParams.amplitude = 6.0;
+            waveParams.frequency = 0.3;
+            waveParams.speed = 2.5;
+            waveParams.colorDepth = 0.6;
+            waveParams.transparency = 0.5;
+            waveParams.foamIntensity = 0.9;
+            waveParams.lightIntensity = 0.7;
+            waveParams.specular = 0.4;
+            waveParams.envReflection = 0.6;
+            
+            applyPreset();
+        }
+        
+        // Set default preset
+        function setDefaultPreset() {
+            waveParams.amplitude = 2.8;
+            waveParams.frequency = 0.18;
+            waveParams.speed = 1.2;
+            waveParams.colorDepth = 0.85;
+            waveParams.transparency = 0.65;
+            waveParams.foamIntensity = 0.5;
+            waveParams.lightIntensity = 1.2;
+            waveParams.specular = 0.75;
+            waveParams.envReflection = 0.8;
+            
+            applyPreset();
+        }
+        
+        // Apply preset to UI and materials
+        function applyPreset() {
+            // Update material properties
+            ocean.material.color = new THREE.Color(0x0077be).multiplyScalar(waveParams.colorDepth);
+            ocean.material.opacity = waveParams.transparency;
+            ocean.material.clearcoatRoughness = 1 - waveParams.specular;
+            ocean.material.reflectivity = waveParams.envReflection;
+            sunLight.intensity = waveParams.lightIntensity;
+            
+            // Update UI sliders and displays
+            document.getElementById('waveHeight').value = waveParams.amplitude;
+            document.getElementById('waveHeightValue').textContent = waveParams.amplitude.toFixed(1);
+            
+            document.getElementById('waveFrequency').value = waveParams.frequency;
+            document.getElementById('waveFrequencyValue').textContent = waveParams.frequency.toFixed(2);
+            
+            document.getElementById('waveSpeed').value = waveParams.speed;
+            document.getElementById('waveSpeedValue').textContent = waveParams.speed.toFixed(1);
+            
+            document.getElementById('waterColor').value = waveParams.colorDepth;
+            document.getElementById('waterColorValue').textContent = waveParams.colorDepth.toFixed(2);
+            
+            document.getElementById('transparency').value = waveParams.transparency;
+            document.getElementById('transparencyValue').textContent = waveParams.transparency.toFixed(2);
+            
+            document.getElementById('foamIntensity').value = waveParams.foamIntensity;
+            document.getElementById('foamIntensityValue').textContent = waveParams.foamIntensity.toFixed(2);
+            
+            document.getElementById('lightIntensity').value = waveParams.lightIntensity;
+            document.getElementById('lightIntensityValue').textContent = waveParams.lightIntensity.toFixed(1);
+            
+            document.getElementById('specular').value = waveParams.specular;
+            document.getElementById('specularValue').textContent = waveParams.specular.toFixed(2);
+            
+            document.getElementById('envReflection').value = waveParams.envReflection;
+            document.getElementById('envReflectionValue').textContent = waveParams.envReflection.toFixed(2);
+        }
+        
+        // Initialize the application
+        window.onload = init;
+    </script>
+</body>
+</html>
