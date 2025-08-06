@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>High-End Three.js 3D Graphics</title>
+    <style>
+        body { margin: 0; padding: 0; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        #container { position: relative; width: 100vw; height: 100vh; }
+        #controls { position: absolute; top: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; color: white; backdrop-filter: blur(10px); }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        input[type="range"] { width: 200px; margin-bottom: 5px; }
+        button { background: linear-gradient(45deg, #6366f1, #8b5cf6); border: none; color: white; padding: 8px 16px; border-radius: 5px; cursor: pointer; margin: 5px; transition: transform 0.2s; }
+        button:hover { transform: translateY(-2px); }
+        #stats { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 15px; border-radius: 10px; font-family: monospace; font-size: 12px; backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <h3 style="margin-top: 0; color: #6366f1;">Graphics Controls</h3>
+            <div class="control-group">
+                <label>Environment Intensity</label>
+                <input type="range" id="envIntensity" min="0" max="5" step="0.1" value="1.5">
+            </div>
+            <div class="control-group">
+                <label>Material Roughness</label>
+                <input type="range" id="roughness" min="0" max="1" step="0.01" value="0.3">
+            </div>
+            <div class="control-group">
+                <label>Material Metalness</label>
+                <input type="range" id="metalness" min="0" max="1" step="0.01" value="0.8">
+            </div>
+            <div class="control-group">
+                <label>Water Animation Speed</label>
+                <input type="range" id="waterSpeed" min="0" max="5" step="0.1" value="1">
+            </div>
+            <div class="control-group">
+                <label>Fire Intensity</label>
+                <input type="range" id="fireIntensity" min="0" max="3" step="0.1" value="1.5">
+            </div>
+            <div class="control-group">
+                <label>Crystal Refraction</label>
+                <input type="range" id="refraction" min="0.8" max="1.5" step="0.01" value="1.2">
+            </div>
+            <div class="control-group">
+                <button id="togglePostProcessing">Toggle Post-Processing</button>
+                <button id="toggleParticles">Toggle Particles</button>
+                <button id="toggleWireframe">Toggle Wireframe</button>
+                <button id="toggleWater">Toggle Water</button>
+                <button id="toggleFire">Toggle Fire</button>
+            </div>
+        </div>
+        
+        <div id="stats">
+            <div id="fps">FPS: --</div>
+            <div id="triangles">Triangles: --</div>
+            <div id="drawCalls">Draw Calls: --</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Global variables
+        let scene, camera, renderer, clock;
+        let sphere, torus, plane, water, crystal;
+        let particleSystem, fireParticles, smokeParticles;
+        
+        // FIX: Post-processing variables declared correctly
+        let postScene, postCamera, renderTarget, postProcessingQuad;
+        
+        let stats = { fps: 0, triangles: 0, drawCalls: 0 };
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let postProcessingEnabled = true;
+        let particlesEnabled = true;
+        let waterEnabled = true;
+        let fireEnabled = true;
+        
+        // Initialize the scene
+        function init() {
+            // Create scene and clock
+            scene = new THREE.Scene();
+            clock = new THREE.Clock(); // FIX: Use a clock for consistent time
+            scene.fog = new THREE.Fog(0x000020, 50, 200);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 15);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            // FIX: Correct property for color space in r128
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // FIX: Create all scene elements in a clear order
+            createEnvironment();
+            createGeometries();
+            createWater();
+            createCrystal();
+            setupLighting();
+            createParticles();
+            createFireAndSmoke();
+            setupPostProcessing();
+            setupControls();
+            
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+        
+        function createEnvironment() {
+            // Create procedural skybox
+            const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+            const skyMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    colorTop: { value: new THREE.Color(0x0077be) },
+                    colorBottom: { value: new THREE.Color(0x89cdf1) }
+                },
+                vertexShader: `varying vec3 vWorldPosition; void main() { vec4 worldPosition = modelMatrix * vec4(position, 1.0); vWorldPosition = worldPosition.xyz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                fragmentShader: `uniform vec3 colorTop; uniform vec3 colorBottom; uniform float time; varying vec3 vWorldPosition; void main() { float h = normalize(vWorldPosition).y; float gradient = smoothstep(-0.2, 0.8, h); vec3 color = mix(colorBottom, colorTop, gradient); float noise = sin(vWorldPosition.x * 0.01 + time) * sin(vWorldPosition.z * 0.01 + time) * 0.1; color += noise; gl_FragColor = vec4(color, 1.0); }`,
+                side: THREE.BackSide
+            });
+            
+            const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+            scene.add(sky);
+            
+            // FIX: Create a dynamic environment map from the sky for reflections
+            const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+                format: THREE.RGBFormat,
+                generateMipmaps: true,
+                minFilter: THREE.LinearMipmapLinearFilter
+            });
+            const cubeCamera = new THREE.CubeCamera(1, 1000, cubeRenderTarget);
+            
+            // This function will be called in the animate loop to update the reflections
+            sky.userData.update = () => {
+                cubeCamera.update(renderer, scene);
+            };
+            
+            scene.environment = cubeRenderTarget.texture;
+        }
+        
+        function createGeometries() {
+            // Ground plane with displacement
+            const planeGeometry = new THREE.PlaneGeometry(100, 100, 256, 256);
+            const planeMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333333,
+                roughness: 0.9,
+                metalness: 0.1,
+            });
+            plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -5;
+            plane.receiveShadow = true;
+            scene.add(plane);
+            
+            // Main sphere with PBR material
+            const sphereGeometry = new THREE.SphereGeometry(2, 64, 64);
+            const sphereMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4a90e2,
+                metalness: 0.8,
+                roughness: 0.3,
+                envMapIntensity: 1.5 // Initial value
+            });
+            
+            sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.set(0, 0, 0);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            scene.add(sphere);
+            
+            // Torus with animated shader material
+            const torusGeometry = new THREE.TorusGeometry(3, 0.5, 32, 128);
+            const torusMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    color1: { value: new THREE.Color(0xff6b6b) },
+                    color2: { value: new THREE.Color(0x4ecdc4) }
+                },
+                // FIX: Pass world position and normal to fragment shader for correct lighting/view calculations
+                vertexShader: `
+                    uniform float time; varying vec2 vUv; varying vec3 vWorldPosition; varying vec3 vWorldNormal;
+                    void main() {
+                        vUv = uv;
+                        vec3 pos = position;
+                        pos += normal * sin(time * 3.0 + position.x * 5.0) * 0.1;
+                        vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                        vWorldPosition = worldPos.xyz;
+                        vWorldNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * viewMatrix * worldPos;
+                    }`,
+                fragmentShader: `
+                    uniform float time; uniform vec3 color1; uniform vec3 color2; varying vec2 vUv; varying vec3 vWorldPosition; varying vec3 vWorldNormal;
+                    void main() {
+                        float mixer = sin(time + vWorldPosition.x * 2.0) * 0.5 + 0.5;
+                        vec3 color = mix(color1, color2, mixer);
+                        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+                        float fresnel = 1.0 - max(dot(vWorldNormal, viewDir), 0.0);
+                        color += pow(fresnel, 3.0) * 0.5;
+                        gl_FragColor = vec4(color, 1.0);
+                    }`,
+                transparent: true
+            });
+            
+            torus = new THREE.Mesh(torusGeometry, torusMaterial);
+            torus.position.set(0, 0, 0);
+            torus.castShadow = true;
+            scene.add(torus);
+        }
+        
+        function setupLighting() {
+            scene.add(new THREE.AmbientLight(0x404040, 0.5));
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+        }
+
+        function createWater() {
+            const waterGeometry = new THREE.PlaneGeometry(50, 50, 128, 128);
+            const waterMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 }, waterSpeed: { value: 1.0 }, waveHeight: { value: 0.3 },
+                    color1: { value: new THREE.Color(0x006994) }, color2: { value: new THREE.Color(0x0099cc) },
+                    fresnelPower: { value: 3.0 }
+                },
+                vertexShader: `
+                    uniform float time; uniform float waterSpeed; uniform float waveHeight; 
+                    varying vec3 vWorldPosition; varying vec3 vWorldNormal;
+                    void main() {
+                        vec3 pos = position;
+                        float wave1 = sin(pos.x * 0.1 + time * waterSpeed) * waveHeight;
+                        float wave2 = sin(pos.y * 0.08 + time * waterSpeed * 1.3) * waveHeight * 0.7;
+                        pos.z += wave1 + wave2;
+                        
+                        vec3 tangent = normalize(vec3(1.0, 0.0, 0.1 * waveHeight * cos(pos.x * 0.1 + time * waterSpeed)));
+                        vec3 bitangent = normalize(vec3(0.0, 1.0, 0.08 * waveHeight * 0.7 * cos(pos.y * 0.08 + time * waterSpeed * 1.3)));
+                        vec3 normal = cross(tangent, bitangent);
+
+                        vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+                        vWorldPosition = worldPos.xyz;
+                        vWorldNormal = normalize( (modelMatrix * vec4(normal, 0.0)).xyz );
+
+                        gl_Position = projectionMatrix * viewMatrix * worldPos;
+                    }`,
+                fragmentShader: `
+                    uniform float time; uniform vec3 color1; uniform vec3 color2; uniform float fresnelPower;
+                    varying vec3 vWorldPosition; varying vec3 vWorldNormal;
+                    void main() {
+                        vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+                        float fresnel = 1.0 - max(dot(vWorldNormal, viewDir), 0.0);
+                        fresnel = pow(fresnel, fresnelPower);
+                        vec3 waterColor = mix(color1, color2, fresnel);
+                        gl_FragColor = vec4(waterColor, 0.8 + fresnel * 0.2);
+                    }`,
+                transparent: true, side: THREE.DoubleSide
+            });
+            water = new THREE.Mesh(waterGeometry, waterMaterial);
+            water.rotation.x = -Math.PI / 2;
+            water.position.y = -2;
+            scene.add(water);
+        }
+
+        function createCrystal() {
+            const crystalGeometry = new THREE.IcosahedronGeometry(1.5, 1);
+            const crystalMaterial = new THREE.MeshStandardMaterial({
+                color: 0x88ccff,
+                roughness: 0.1,
+                metalness: 0.2,
+                transmission: 1.0, // FIX: Use built-in transmission for refraction
+                thickness: 2.0,     // Adjust for more/less refraction
+                envMapIntensity: 2.5
+            });
+            crystal = new THREE.Mesh(crystalGeometry, crystalMaterial);
+            crystal.position.set(5, 0, 5);
+            crystal.castShadow = true;
+            scene.add(crystal);
+        }
+        
+        function createParticles() {
+            const particleCount = 3000;
+            const positions = new Float32Array(particleCount * 3);
+            for (let i = 0; i < particleCount; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 100;
+                positions[i * 3 + 1] = Math.random() * 50;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+            }
+            const particleGeometry = new THREE.BufferGeometry();
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const particleMaterial = new THREE.PointsMaterial({
+                color: 0xffffff, size: 0.1, blending: THREE.AdditiveBlending, transparent: true,
+            });
+            particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+            scene.add(particleSystem);
+        }
+
+        function createFireAndSmoke() {
+             const fireCount = 500;
+             const fireGeometry = new THREE.BufferGeometry();
+             const firePositions = new Float32Array(fireCount * 3);
+             const fireLifetimes = new Float32Array(fireCount);
+             const fireVelocities = new Float32Array(fireCount * 3);
+
+             for (let i = 0; i < fireCount; i++) {
+                firePositions[i * 3] = (Math.random() - 0.5) * 1.5;
+                firePositions[i * 3 + 1] = 0;
+                firePositions[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+                fireVelocities[i * 3] = (Math.random() - 0.5) * 0.2;
+                fireVelocities[i * 3 + 1] = Math.random() * 1.5 + 1;
+                fireVelocities[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+                fireLifetimes[i] = Math.random();
+            }
+            fireGeometry.setAttribute('position', new THREE.BufferAttribute(firePositions, 3));
+            fireGeometry.setAttribute('lifetime', new THREE.BufferAttribute(fireLifetimes, 1));
+            fireGeometry.setAttribute('velocity', new THREE.BufferAttribute(fireVelocities, 3));
+            
+            const fireMaterial = new THREE.ShaderMaterial({
+                uniforms: { time: { value: 0 }, intensity: { value: 1.5 } },
+                vertexShader: `
+                    uniform float time; attribute float lifetime; attribute vec3 velocity; varying float vLifetime;
+                    void main() {
+                        vLifetime = mod(lifetime + time * 0.5, 1.0);
+                        vec3 pos = position + velocity * vLifetime * 5.0;
+                        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                        gl_PointSize = (1.0 - vLifetime) * 20.0 * (300.0 / -mvPosition.z);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }`,
+                fragmentShader: `
+                    uniform float intensity; varying float vLifetime;
+                    void main() {
+                        float r = distance(gl_PointCoord, vec2(0.5));
+                        if (r > 0.5) discard;
+                        vec3 color = mix(vec3(1.0, 0.9, 0.2), vec3(1.0, 0.2, 0.0), vLifetime);
+                        float alpha = (1.0 - r * 2.0) * (1.0 - vLifetime) * intensity;
+                        gl_FragColor = vec4(color, alpha);
+                    }`,
+                transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+            });
+            fireParticles = new THREE.Points(fireGeometry, fireMaterial);
+            fireParticles.position.set(-5, -4, -5);
+            scene.add(fireParticles);
+            // NOTE: Smoke particles are omitted for simplicity and performance focus.
+        }
+        
+        function setupPostProcessing() {
+            renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
+            
+            // FIX: Create a separate scene for the post-processing quad.
+            postScene = new THREE.Scene();
+            postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            
+            const quadGeometry = new THREE.PlaneGeometry(2, 2);
+            const postProcessMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    tDiffuse: { value: null }, time: { value: 0 }, bloomIntensity: { value: 1.5 },
+                    vignetteStrength: { value: 0.5 }
+                },
+                vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+                fragmentShader: `
+                    uniform sampler2D tDiffuse; uniform float time; uniform float bloomIntensity; uniform float vignetteStrength; varying vec2 vUv;
+                    void main() {
+                        vec3 color = texture2D(tDiffuse, vUv).rgb;
+                        float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                        if (brightness > 0.8) { color += color * bloomIntensity * (brightness - 0.8); }
+                        float vignette = 1.0 - smoothstep(0.3, 0.8, distance(vUv, vec2(0.5)) * vignetteStrength);
+                        color *= vignette;
+                        float grain = (fract(sin(dot(vUv + time, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.05;
+                        color += grain;
+                        gl_FragColor = vec4(color, 1.0);
+                    }`
+            });
+            
+            postProcessingQuad = new THREE.Mesh(quadGeometry, postProcessMaterial);
+            postScene.add(postProcessingQuad);
+        }
+        
+        function setupControls() {
+            // Material and effect controls
+            document.getElementById('envIntensity').addEventListener('input', (e) => { sphere.material.envMapIntensity = parseFloat(e.target.value); });
+            document.getElementById('roughness').addEventListener('input', (e) => { sphere.material.roughness = parseFloat(e.target.value); });
+            document.getElementById('metalness').addEventListener('input', (e) => { sphere.material.metalness = parseFloat(e.target.value); });
+            document.getElementById('waterSpeed').addEventListener('input', (e) => { water.material.uniforms.waterSpeed.value = parseFloat(e.target.value); });
+            document.getElementById('fireIntensity').addEventListener('input', (e) => { fireParticles.material.uniforms.intensity.value = parseFloat(e.target.value); });
+            document.getElementById('refraction').addEventListener('input', (e) => { crystal.material.thickness = parseFloat(e.target.value) * 2; }); // Link to thickness
+
+            // Toggle controls
+            document.getElementById('togglePostProcessing').addEventListener('click', () => postProcessingEnabled = !postProcessingEnabled);
+            document.getElementById('toggleParticles').addEventListener('click', () => { particlesEnabled = !particlesEnabled; particleSystem.visible = particlesEnabled; });
+            document.getElementById('toggleWireframe').addEventListener('click', () => { sphere.material.wireframe = !sphere.material.wireframe; torus.material.wireframe = !torus.material.wireframe; });
+            document.getElementById('toggleWater').addEventListener('click', () => { waterEnabled = !waterEnabled; water.visible = waterEnabled; });
+            document.getElementById('toggleFire').addEventListener('click', () => { fireEnabled = !fireEnabled; fireParticles.visible = fireEnabled; });
+            
+            // FIX: Proper orbital mouse controls
+            const spherical = new THREE.Spherical(15, Math.PI / 2.2, 0);
+            let mouseDown = false;
+            let lastMouseX = 0, lastMouseY = 0;
+
+            const updateCameraPosition = () => {
+                const offset = new THREE.Vector3().setFromSpherical(spherical);
+                camera.position.copy(offset);
+                camera.lookAt(0, 0, 0);
+            };
+            updateCameraPosition();
+
+            renderer.domElement.addEventListener('mousedown', (e) => { mouseDown = true; lastMouseX = e.clientX; lastMouseY = e.clientY; });
+            document.addEventListener('mouseup', () => mouseDown = false);
+            document.addEventListener('mousemove', (e) => {
+                if (!mouseDown) return;
+                const deltaX = e.clientX - lastMouseX;
+                const deltaY = e.clientY - lastMouseY;
+                spherical.theta -= deltaX * 0.005;
+                spherical.phi -= deltaY * 0.005;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                updateCameraPosition();
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            });
+            renderer.domElement.addEventListener('wheel', (e) => {
+                spherical.radius *= e.deltaY > 0 ? 1.1 : 0.9;
+                spherical.radius = Math.max(5, Math.min(50, spherical.radius));
+                updateCameraPosition();
+            });
+        }
+        
+        function updateStats() {
+            const currentTime = performance.now();
+            frameCount++;
+            if (currentTime >= lastTime + 1000) {
+                stats.fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                stats.triangles = renderer.info.render.triangles; // FIX: Use accurate triangle count
+                stats.drawCalls = renderer.info.render.calls;     // FIX: Use accurate draw call count
+                frameCount = 0;
+                lastTime = currentTime;
+                document.getElementById('fps').textContent = `FPS: ${stats.fps}`;
+                document.getElementById('triangles').textContent = `Triangles: ${stats.triangles.toLocaleString()}`;
+                document.getElementById('drawCalls').textContent = `Draw Calls: ${stats.drawCalls}`;
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const elapsedTime = clock.getElapsedTime();
+            
+            // Update object animations
+            sphere.position.y = Math.sin(elapsedTime) * 0.5;
+            torus.rotation.x += 0.005;
+            torus.rotation.y += 0.003;
+            crystal.rotation.y += 0.004;
+
+            // Update shader uniforms
+            if (torus.material.uniforms) torus.material.uniforms.time.value = elapsedTime;
+            if (water.material.uniforms) water.material.uniforms.time.value = elapsedTime;
+            if (fireParticles.material.uniforms) fireParticles.material.uniforms.time.value = elapsedTime;
+            
+            // Update particle system
+            particleSystem.rotation.y += 0.001;
+
+            // FIX: Update the skybox and its reflection map
+            const sky = scene.children[0];
+            if (sky && sky.userData.update) {
+                sky.material.uniforms.time.value = elapsedTime * 0.1;
+                sky.userData.update();
+            }
+            
+            updateStats();
+            
+            // Render logic
+            if (postProcessingEnabled) {
+                // FIX: Correct, efficient post-processing render path
+                renderer.setRenderTarget(renderTarget);
+                renderer.clear();
+                renderer.render(scene, camera);
+                
+                postProcessingQuad.material.uniforms.tDiffuse.value = renderTarget.texture;
+                postProcessingQuad.material.uniforms.time.value = elapsedTime;
+                
+                renderer.setRenderTarget(null);
+                renderer.clear();
+                renderer.render(postScene, postCamera);
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            if (renderTarget) {
+                renderTarget.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
