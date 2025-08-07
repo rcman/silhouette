@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Butterfly Wave Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            overflow: hidden;
+            background: linear-gradient(135deg, #0c2a5c, #1a0636, #0c2a5c);
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(8, 15, 40, 0.85);
+            border-bottom: 2px solid rgba(180, 100, 255, 0.4);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+            backdrop-filter: blur(5px);
+        }
+        
+        .header h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 15px rgba(180, 100, 255, 0.8);
+            letter-spacing: 1px;
+            background: linear-gradient(to right, #ff8cc6, #a682ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+            color: #d0c0ff;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            position: relative;
+        }
+        
+        #scene-container {
+            flex: 1;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+            border: 2px solid rgba(180, 100, 255, 0.4);
+            background: rgba(10, 15, 45, 0.7);
+        }
+        
+        .controls {
+            width: 320px;
+            background: rgba(15, 10, 40, 0.85);
+            border-radius: 16px;
+            padding: 20px;
+            border: 2px solid rgba(180, 100, 255, 0.4);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+            overflow-y: auto;
+            max-height: calc(100vh - 160px);
+            backdrop-filter: blur(5px);
+            z-index: 2;
+        }
+        
+        .controls h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #d0a0ff;
+            text-shadow: 0 0 10px rgba(180, 100, 255, 0.6);
+            background: linear-gradient(to right, #ff8cc6, #a682ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .control-group {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(180, 100, 255, 0.3);
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        .control-group h3 {
+            margin-bottom: 15px;
+            color: #d0a0ff;
+            display: flex;
+            align-items: center;
+            font-size: 1.2rem;
+        }
+        
+        .slider-container {
+            margin-bottom: 15px;
+        }
+        
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            color: #e0c0ff;
+            font-size: 0.95rem;
+        }
+        
+        .slider-container input {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(80, 50, 150, 0.5);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider-container input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #c080ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(180, 100, 255, 0.7);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(to bottom, #a682ff, #7a5cbf);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            font-size: 1rem;
+            border: 1px solid rgba(180, 100, 255, 0.4);
+        }
+        
+        button:hover {
+            background: linear-gradient(to bottom, #c080ff, #8a6cff);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            background: rgba(8, 15, 40, 0.85);
+            font-size: 0.9rem;
+            color: #d0c0ff;
+            border-top: 2px solid rgba(180, 100, 255, 0.4);
+        }
+        
+        .info-panel {
+            background: rgba(30, 20, 60, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            border: 1px solid rgba(180, 100, 255, 0.4);
+        }
+        
+        .info-panel h3 {
+            color: #d0a0ff;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .info-panel p {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #e0c0ff;
+        }
+        
+        .value-display {
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+            font-weight: bold;
+            color: #c080ff;
+        }
+        
+        .butterfly-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.15;
+            z-index: 1;
+            background: radial-gradient(circle, transparent 70%, #0c2a5c 100%),
+                        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><path fill="%23ff8cc6" d="M100,20 C80,20 60,30 50,50 C40,70 40,90 50,110 C60,130 80,140 100,140 C120,140 140,130 150,110 C160,90 160,70 150,50 C140,30 120,20 100,20 Z" transform="rotate(45 100 100)"/></svg>');
+            background-size: 300px, 200px;
+            background-repeat: no-repeat;
+            animation: float 25s infinite linear;
+        }
+        
+        @keyframes float {
+            0% { background-position: 0% 0%, 10% 20%; }
+            25% { background-position: 50% 30%, 80% 40%; }
+            50% { background-position: 70% 60%, 30% 70%; }
+            75% { background-position: 40% 80%, 90% 30%; }
+            100% { background-position: 0% 0%, 10% 20%; }
+        }
+        
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .controls {
+                width: 100%;
+                max-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Butterfly Wave Generator</h1>
+        <p>Mesmerizing ocean simulation where butterfly patterns influence wave formation and movement</p>
+    </div>
+    
+    <div class="container">
+        <div class="butterfly-overlay"></div>
+        
+        <div class="controls">
+            <h2>Butterfly Wave Controls</h2>
+            
+            <div class="control-group">
+                <h3>Butterfly Influence</h3>
+                <div class="slider-container">
+                    <label for="butterflyStrength">Pattern Strength: <span class="value-display" id="butterflyStrengthValue">0.8</span></label>
+                    <input type="range" id="butterflyStrength" min="0.1" max="2" step="0.1" value="0.8">
+                </div>
+                <div class="slider-container">
+                    <label for="butterflySize">Pattern Size: <span class="value-display" id="butterflySizeValue">0.25</span></label>
+                    <input type="range" id="butterflySize" min="0.1" max="1" step="0.05" value="0.25">
+                </div>
+                <div class="slider-container">
+                    <label for="butterflySpeed">Pattern Speed: <span class="value-display" id="butterflySpeedValue">0.5</span></label>
+                    <input type="range" id="butterflySpeed" min="0" max="2" step="0.1" value="0.5">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Wave Properties</h3>
+                <div class="slider-container">
+                    <label for="waveHeight">Height: <span class="value-display" id="waveHeightValue">3.0</span></label>
+                    <input type="range" id="waveHeight" min="0.5" max="10" step="0.1" value="3.0">
+                </div>
+                <div class="slider-container">
+                    <label for="waveSpeed">Speed: <span class="value-display" id="waveSpeedValue">1.5</span></label>
+                    <input type="range" id="waveSpeed" min="0.1" max="3" step="0.1" value="1.5">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Water Appearance</h3>
+                <div class="slider-container">
+                    <label for="waterColor">Color: <span class="value-display" id="waterColorValue">0.8</span></label>
+                    <input type="range" id="waterColor" min="0.1" max="1" step="0.05" value="0.8">
+                </div>
+                <div class="slider-container">
+                    <label for="transparency">Transparency: <span class="value-display" id="transparencyValue">0.6</span></label>
+                    <input type="range" id="transparency" min="0.1" max="0.9" step="0.05" value="0.6">
+                </div>
+            </div>
+            
+            <div class="btn-group">
+                <button id="gentleBtn">Gentle Flutter</button>
+                <button id="swarmBtn">Butterfly Swarm</button>
+            </div>
+            
+            <div class="info-panel">
+                <h3>About Butterfly Waves</h3>
+                <p>This simulation uses butterfly patterns to influence ocean wave formation. The unique algorithm combines Gerstner wave physics with butterfly-shaped displacement textures to create mesmerizing wave patterns.</p>
+            </div>
+        </div>
+        
+        <div id="scene-container"></div>
+    </div>
+    
+    <div class="footer">
+        <p>Butterfly Wave Generator | Three.js | Unique Wave Patterns | Created with DeepSeek-R1</p>
+    </div>
+
+    <script>
+        // Main Three.js variables
+        let scene, camera, renderer, controls;
+        let ocean, butterflyTexture, clock;
+        let butterflyParams = {
+            strength: 0.8,
+            size: 0.25,
+            speed: 0.5,
+            waveHeight: 3.0,
+            waveSpeed: 1.5,
+            colorDepth: 0.8,
+            transparency: 0.6,
+            time: 0
+        };
+        
+        // Create butterfly texture programmatically
+        function createButterflyTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw butterfly pattern
+            ctx.fillStyle = '#1a0636';
+            ctx.fillRect(0, 0, 256, 256);
+            
+            // Draw multiple butterfly shapes
+            for (let i = 0; i < 20; i++) {
+                const x = Math.random() * 256;
+                const y = Math.random() * 256;
+                const size = 20 + Math.random() * 30;
+                const hue = 280 + Math.random() * 40;
+                
+                drawButterfly(ctx, x, y, size, `hsl(${hue}, 80%, 60%)`);
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+        
+        // Draw a single butterfly shape
+        function drawButterfly(ctx, x, y, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Butterfly wings
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.7;
+            
+            // Left wing
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(-size, -size/2, -size*1.5, -size, -size, -size*1.2);
+            ctx.bezierCurveTo(-size/2, -size, 0, -size/2, 0, 0);
+            ctx.fill();
+            
+            // Right wing
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(size, -size/2, size*1.5, -size, size, -size*1.2);
+            ctx.bezierCurveTo(size/2, -size, 0, -size/2, 0, 0);
+            ctx.fill();
+            
+            // Body
+            ctx.fillStyle = '#ff8cc6';
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size/10, size/3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        // Initialize the scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a1a30);
+            scene.fog = new THREE.FogExp2(0x0a1a30, 0.001);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 15, 40);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                alpha: true
+            });
+            renderer.setSize(window.innerWidth - 360, window.innerHeight - 160);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.8;
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+            
+            // Add orbit controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 20;
+            controls.maxDistance = 100;
+            
+            // Create butterfly texture
+            butterflyTexture = createButterflyTexture();
+            
+            // Add lighting
+            addLighting();
+            
+            // Create ocean
+            createOcean();
+            
+            // Add sky
+            createSky();
+            
+            // Add floating butterflies
+            createFloatingButterflies();
+            
+            // Add event listeners for controls
+            setupEventListeners();
+            
+            // Initialize clock
+            clock = new THREE.Clock();
+            
+            // Start animation
+            animate();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // Add lighting to the scene
+        function addLighting() {
+            // Sun light (directional)
+            const sunLight = new THREE.DirectionalLight(0xffddcc, 1.5);
+            sunLight.position.set(50, 50, 50);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 1024;
+            sunLight.shadow.mapSize.height = 1024;
+            scene.add(sunLight);
+            
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            // Purple fill light
+            const fillLight = new THREE.DirectionalLight(0xcc88ff, 0.5);
+            fillLight.position.set(-30, 30, -30);
+            scene.add(fillLight);
+            
+            // Back light
+            const backLight = new THREE.DirectionalLight(0x88ccff, 0.4);
+            backLight.position.set(0, 20, -50);
+            scene.add(backLight);
+        }
+        
+        // Create ocean surface
+        function createOcean() {
+            // Create water geometry
+            const oceanGeometry = new THREE.PlaneGeometry(200, 200, 256, 256);
+            oceanGeometry.rotateX(-Math.PI / 2);
+            
+            // Create water material with butterfly influence
+            const waterMaterial = new THREE.MeshPhysicalMaterial({
+                color: new THREE.Color(0x3a5fc0).multiplyScalar(butterflyParams.colorDepth),
+                transparent: true,
+                opacity: butterflyParams.transparency,
+                metalness: 0.1,
+                roughness: 0.2,
+                clearcoat: 0.8,
+                clearcoatRoughness: 0.2,
+                reflectivity: 0.7,
+                side: THREE.DoubleSide,
+                flatShading: false
+            });
+            
+            ocean = new THREE.Mesh(oceanGeometry, waterMaterial);
+            ocean.receiveShadow = true;
+            ocean.castShadow = true;
+            ocean.position.y = -2;
+            scene.add(ocean);
+            
+            // Store initial positions for wave calculation
+            ocean.userData.initialPositions = ocean.geometry.attributes.position.array.slice();
+        }
+        
+        // Create floating butterflies
+        function createFloatingButterflies() {
+            const butterflyGroup = new THREE.Group();
+            scene.add(butterflyGroup);
+            
+            const butterflyMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff8cc6,
+                transparent: true,
+                opacity: 0.7,
+                side: THREE.DoubleSide
+            });
+            
+            // Create butterfly geometry
+            const butterflyGeometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const size = 3;
+            
+            // Butterfly shape
+            vertices.push(0, 0, 0); // Body center
+            vertices.push(-size, -size*0.5, 0); // Left wing
+            vertices.push(-size*1.5, -size, 0);
+            vertices.push(-size, -size*1.2, 0);
+            vertices.push(size, -size*0.5, 0); // Right wing
+            vertices.push(size*1.5, -size, 0);
+            vertices.push(size, -size*1.2, 0);
+            
+            butterflyGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            
+            // Create multiple butterflies
+            for (let i = 0; i < 50; i++) {
+                const butterfly = new THREE.Line(butterflyGeometry, butterflyMaterial);
+                
+                // Random position above ocean
+                const x = (Math.random() - 0.5) * 180;
+                const z = (Math.random() - 0.5) * 180;
+                const y = 5 + Math.random() * 10;
+                
+                butterfly.position.set(x, y, z);
+                butterfly.rotation.x = Math.PI / 2;
+                butterfly.scale.set(0.2, 0.2, 0.2);
+                
+                // Store initial position for animation
+                butterfly.userData = {
+                    initialY: y,
+                    speed: 0.5 + Math.random() * 1,
+                    offset: Math.random() * Math.PI * 2
+                };
+                
+                butterflyGroup.add(butterfly);
+            }
+            
+            scene.butterflyGroup = butterflyGroup;
+        }
+        
+        // Create sky
+        function createSky() {
+            const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+            const skyMaterial = new THREE.MeshBasicMaterial({
+                color: 0x3a2a5c,
+                side: THREE.BackSide
+            });
+            
+            const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+            scene.add(sky);
+        }
+        
+        // Update ocean waves with butterfly influence
+        function updateWaves() {
+            butterflyParams.time += clock.getDelta() * butterflyParams.waveSpeed;
+            
+            const positions = ocean.geometry.attributes.position.array;
+            const initialPositions = ocean.userData.initialPositions;
+            const count = ocean.geometry.parameters.heightSegments + 1;
+            const width = ocean.geometry.parameters.width;
+            const height = ocean.geometry.parameters.height;
+            
+            // Butterfly pattern parameters
+            const butterflyScale = 10 * butterflyParams.size;
+            const butterflyStrength = butterflyParams.strength;
+            
+            for (let i = 0; i <= count; i++) {
+                for (let j = 0; j <= count; j++) {
+                    const idx = (i * (count + 1) + j) * 3;
+                    const x = initialPositions[idx];
+                    const z = initialPositions[idx + 2];
+                    
+                    // Base wave pattern
+                    let waveY = Math.sin((x * 0.1) + butterflyParams.time) * 
+                                Math.cos((z * 0.15) + butterflyParams.time * 0.7) * 
+                                butterflyParams.waveHeight * 0.5;
+                    
+                    // Butterfly pattern influence
+                    const u = (x / width + 0.5) * butterflyScale + butterflyParams.time * butterflyParams.speed;
+                    const v = (z / height + 0.5) * butterflyScale + Math.sin(butterflyParams.time * 0.3);
+                    
+                    // Simulate sampling a butterfly texture
+                    const pattern = Math.sin(u * Math.PI * 2) * Math.cos(v * Math.PI * 2);
+                    const butterflyEffect = Math.max(0, pattern) * butterflyStrength;
+                    
+                    // Combine wave and butterfly effect
+                    positions[idx + 1] = waveY + butterflyEffect * butterflyParams.waveHeight;
+                }
+            }
+            
+            ocean.geometry.attributes.position.needsUpdate = true;
+            ocean.geometry.computeVertexNormals();
+        }
+        
+        // Animate floating butterflies
+        function animateButterflies() {
+            if (!scene.butterflyGroup) return;
+            
+            const time = clock.getElapsedTime();
+            
+            scene.butterflyGroup.children.forEach(butterfly => {
+                // Flapping animation
+                const flapSpeed = butterfly.userData.speed;
+                const flapOffset = butterfly.userData.offset;
+                const flapHeight = Math.sin(time * flapSpeed * 5 + flapOffset) * 0.3;
+                
+                // Floating motion
+                const floatY = butterfly.userData.initialY + Math.sin(time * flapSpeed + flapOffset) * 1.5;
+                
+                // Position updates
+                butterfly.position.y = floatY + flapHeight;
+                
+                // Slight horizontal movement
+                butterfly.position.x += Math.cos(time * flapSpeed * 0.3 + flapOffset) * 0.02;
+                butterfly.position.z += Math.sin(time * flapSpeed * 0.4 + flapOffset) * 0.03;
+                
+                // Rotation for flapping effect
+                butterfly.rotation.z = Math.sin(time * flapSpeed * 5 + flapOffset) * 0.2;
+                
+                // Keep butterflies above ocean
+                const oceanY = -2 + butterfly.position.y;
+                if (oceanY < 0.5) {
+                    butterfly.position.y += 0.5;
+                }
+            });
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update waves with butterfly influence
+            updateWaves();
+            
+            // Animate floating butterflies
+            animateButterflies();
+            
+            // Update controls
+            controls.update();
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        function onWindowResize() {
+            const container = document.getElementById('scene-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+        
+        // Set up UI event listeners
+        function setupEventListeners() {
+            // Butterfly strength
+            document.getElementById('butterflyStrength').addEventListener('input', function() {
+                butterflyParams.strength = parseFloat(this.value);
+                document.getElementById('butterflyStrengthValue').textContent = this.value;
+            });
+            
+            // Butterfly size
+            document.getElementById('butterflySize').addEventListener('input', function() {
+                butterflyParams.size = parseFloat(this.value);
+                document.getElementById('butterflySizeValue').textContent = this.value;
+            });
+            
+            // Butterfly speed
+            document.getElementById('butterflySpeed').addEventListener('input', function() {
+                butterflyParams.speed = parseFloat(this.value);
+                document.getElementById('butterflySpeedValue').textContent = this.value;
+            });
+            
+            // Wave height
+            document.getElementById('waveHeight').addEventListener('input', function() {
+                butterflyParams.waveHeight = parseFloat(this.value);
+                document.getElementById('waveHeightValue').textContent = this.value;
+            });
+            
+            // Wave speed
+            document.getElementById('waveSpeed').addEventListener('input', function() {
+                butterflyParams.waveSpeed = parseFloat(this.value);
+                document.getElementById('waveSpeedValue').textContent = this.value;
+            });
+            
+            // Water color
+            document.getElementById('waterColor').addEventListener('input', function() {
+                butterflyParams.colorDepth = parseFloat(this.value);
+                ocean.material.color = new THREE.Color(0x3a5fc0).multiplyScalar(butterflyParams.colorDepth);
+                document.getElementById('waterColorValue').textContent = this.value;
+            });
+            
+            // Transparency
+            document.getElementById('transparency').addEventListener('input', function() {
+                butterflyParams.transparency = parseFloat(this.value);
+                ocean.material.opacity = butterflyParams.transparency;
+                document.getElementById('transparencyValue').textContent = this.value;
+            });
+            
+            // Presets
+            document.getElementById('gentleBtn').addEventListener('click', setGentlePreset);
+            document.getElementById('swarmBtn').addEventListener('click', setSwarmPreset);
+        }
+        
+        // Set gentle preset
+        function setGentlePreset() {
+            butterflyParams.strength = 0.4;
+            butterflyParams.size = 0.15;
+            butterflyParams.speed = 0.2;
+            butterflyParams.waveHeight = 1.5;
+            butterflyParams.waveSpeed = 0.8;
+            butterflyParams.colorDepth = 0.9;
+            butterflyParams.transparency = 0.7;
+            
+            applyPreset();
+        }
+        
+        // Set swarm preset
+        function setSwarmPreset() {
+            butterflyParams.strength = 1.5;
+            butterflyParams.size = 0.5;
+            butterflyParams.speed = 1.2;
+            butterflyParams.waveHeight = 5.0;
+            butterflyParams.waveSpeed = 2.0;
+            butterflyParams.colorDepth = 0.6;
+            butterflyParams.transparency = 0.5;
+            
+            applyPreset();
+        }
+        
+        // Apply preset to UI and materials
+        function applyPreset() {
+            // Update material properties
+            ocean.material.color = new THREE.Color(0x3a5fc0).multiplyScalar(butterflyParams.colorDepth);
+            ocean.material.opacity = butterflyParams.transparency;
+            
+            // Update UI sliders and displays
+            document.getElementById('butterflyStrength').value = butterflyParams.strength;
+            document.getElementById('butterflyStrengthValue').textContent = butterflyParams.strength.toFixed(1);
+            
+            document.getElementById('butterflySize').value = butterflyParams.size;
+            document.getElementById('butterflySizeValue').textContent = butterflyParams.size.toFixed(2);
+            
+            document.getElementById('butterflySpeed').value = butterflyParams.speed;
+            document.getElementById('butterflySpeedValue').textContent = butterflyParams.speed.toFixed(1);
+            
+            document.getElementById('waveHeight').value = butterflyParams.waveHeight;
+            document.getElementById('waveHeightValue').textContent = butterflyParams.waveHeight.toFixed(1);
+            
+            document.getElementById('waveSpeed').value = butterflyParams.waveSpeed;
+            document.getElementById('waveSpeedValue').textContent = butterflyParams.waveSpeed.toFixed(1);
+            
+            document.getElementById('waterColor').value = butterflyParams.colorDepth;
+            document.getElementById('waterColorValue').textContent = butterflyParams.colorDepth.toFixed(2);
+            
+            document.getElementById('transparency').value = butterflyParams.transparency;
+            document.getElementById('transparencyValue').textContent = butterflyParams.transparency.toFixed(2);
+        }
+        
+        // Initialize the application
+        window.onload = init;
+    </script>
+</body>
+</html>
